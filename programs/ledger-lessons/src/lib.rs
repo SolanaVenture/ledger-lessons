@@ -1,5 +1,5 @@
-use std::mem;
 use anchor_lang::prelude::*;
+use std::mem;
 
 declare_id!("9XKM2fDpipiqeYSNFGi43cVuS888EpsVbhqYJmymiDCD");
 
@@ -8,8 +8,26 @@ pub mod ledger_lessons {
     use super::*;
 
     // Initialize the course and set up the corresponding escrow account
-    pub fn initialize(_ctx: Context<Initialize>) -> Result<()> {
-        // TODO
+    pub fn initialize(
+        ctx: Context<Initialize>,
+        name: String,
+        description: String,
+        total_hours: u64,
+        deposit_amount: u64,
+    ) -> Result<()> {
+        let course = &mut ctx.accounts.course;
+        course.name = name;
+        course.description = description;
+        course.total_hours = total_hours;
+        course.deposit_amount = deposit_amount;
+
+        let escrow = &mut ctx.accounts.escrow;
+        escrow.deposits = Vec::new();
+        escrow.course = course.key();
+
+        let course_registry = &mut ctx.accounts.course_registry;
+        course_registry.course_accounts.push(course.key());
+
         Ok(())
     }
 
@@ -25,24 +43,23 @@ pub mod ledger_lessons {
         _student_accounts: Vec<Pubkey>,
     ) -> Result<()> {
         // TODO: Update the class time for the attending students
-    Ok(())
-}
+        Ok(())
+    }
 
     // Close the course and handle the deposit based on attendance rate
     pub fn finish_course(_ctx: Context<FinishCourse>) -> Result<()> {
         // TODO: Iterate through students and handle deposits
-    Ok(())
+        Ok(())
     }
-
 }
 
 #[derive(Accounts)]
 pub struct Initialize<'info> {
     #[account(
-        init, 
+        init,
         seeds = [b"course", signer.key().as_ref()],
         bump,
-        payer = signer, 
+        payer = signer,
         space = 8 + mem::size_of::<CourseAccount>() + 8,
     )]
     pub course: Account<'info, CourseAccount>,
@@ -50,15 +67,24 @@ pub struct Initialize<'info> {
     #[account(
         init,
         seeds = [b"escrow", course.key().as_ref()],
-        bump, 
-        payer = signer, 
+        bump,
+        payer = signer,
         space = 8 + mem::size_of::<EscrowAccount>() + 8
     )]
     pub escrow: Account<'info, EscrowAccount>,
-    
+
+    #[account(
+        init_if_needed,
+        payer = signer,
+        space = 8 + std::mem::size_of::<CourseRegistry>() + 8,
+        seeds = [b"course_registry"],
+        bump
+    )]
+    pub course_registry: Account<'info, CourseRegistry>,
+
     #[account(mut)]
     pub signer: Signer<'info>,
-    
+
     pub system_program: Program<'info, System>,
 }
 
@@ -77,6 +103,10 @@ pub struct FinishCourse {
     // TODO
 }
 
+#[account]
+pub struct CourseRegistry {
+    pub course_accounts: Vec<Pubkey>, // Store all pub keys of courses
+}
 
 #[account]
 pub struct EscrowAccount {
